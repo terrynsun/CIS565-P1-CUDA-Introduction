@@ -12,9 +12,12 @@
 // Configuration
 // ================
 
-#define VISUALIZE 1
+#define VISUALIZE 0
 
-const int N_FOR_VIS = 2500;
+const int N_FOR_VIS = 4096;
+int BLOCK_SIZE = 16;
+const int BLOCK_SIZE_STEP = 8;
+const int MAX_BLOCK_SIZE = 1024;
 const float DT = 0.5f;
 
 /**
@@ -184,6 +187,11 @@ void initShaders(GLuint * program) {
 //====================================
 // Main loop
 //====================================
+
+float total(0.0f);
+int count = 0;
+int iterations = 100;
+
 void runCUDA() {
     // Map OpenGL buffer object for writing from CUDA on a single GPU
     // No data is moved (Win & Linux). When mapped to CUDA, OpenGL should not
@@ -194,7 +202,18 @@ void runCUDA() {
     cudaGLMapBufferObject((void**)&dptrvert, planetVBO);
 
     // execute the kernel
-    Nbody::stepSimulation(DT);
+    float t = Nbody::stepSimulation(DT, BLOCK_SIZE);
+    total += t;
+    count += 1;
+    if (count == iterations) {
+        std::cout << BLOCK_SIZE << "\t" << (total/iterations) << std::endl;
+        total = 0;
+        count = 0;
+        BLOCK_SIZE += BLOCK_SIZE_STEP;
+        if (BLOCK_SIZE > MAX_BLOCK_SIZE) {
+            exit(0);
+        }
+    }
 #if VISUALIZE
     Nbody::copyPlanetsToVBO(dptrvert);
 #endif

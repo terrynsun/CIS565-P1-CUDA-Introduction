@@ -202,7 +202,6 @@ __global__ void kernUpdateAcc(int N, float dt, const glm::vec3 *pos, glm::vec3 *
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < N) {
         acc[i] = accelerate(N, i, pos);
-    } else {
     }
 }
 
@@ -220,16 +219,36 @@ __global__ void kernUpdateVelPos(int N, float dt, glm::vec3 *pos, glm::vec3 *vel
 
 /**
  * Step the entire N-body simulation by `dt` seconds.
+ *
+ * Returns the time elapsed in ms.
  */
-void Nbody::stepSimulation(float dt) {
-    dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize);
-    kernUpdateAcc<<<fullBlocksPerGrid, blockSize>>>(numObjects, dt,
-            dev_pos, dev_acc);
-    checkCUDAErrorWithLine("kernUpdateAcc failed!");
+float Nbody::stepSimulation(float dt, int threadsPerBlock) {
+    dim3 fullBlocksPerGrid = (numObjects + threadsPerBlock - 1) / threadsPerBlock;
 
-    kernUpdateVelPos<<<fullBlocksPerGrid, blockSize>>>(numObjects, dt,
-            dev_pos, dev_vel, dev_acc);
-    checkCUDAErrorWithLine("kernUpdateVelPos failed!");
+    dim3 numBlocks(fullBlocksPerGrid);
+    dim3 numThreads(threadsPerBlock);
+
+    cudaEvent_t begin, end;
+
+    cudaEventCreate(&begin);
+    cudaEventCreate(&end);
+
+    cudaEventRecord(begin, 0);
+
+    kernUpdateAcc<<<numBlocks, numThreads>>>(numObjects, dt, dev_pos, dev_acc);
+    kernUpdateVelPos<<<numBlocks, numThreads>>>(numObjects, dt, dev_pos, dev_vel, dev_acc);
+    //checkCUDAErrorWithLine("Step Simulation failed!");
+
+    cudaEventRecord(end, 0);
+    cudaEventSynchronize(end);
+
+    float timeElapsed;
+    cudaEventElapsedTime(&timeElapsed, begin, end);
+
+    cudaEventDestroy(begin);
+    cudaEventDestroy(end);
+
+    return timeElapsed;
 }
 
 void Nbody::endSimulation() {
