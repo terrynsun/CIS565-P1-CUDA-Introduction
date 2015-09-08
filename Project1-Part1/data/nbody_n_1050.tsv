@@ -1,6 +1,3 @@
-file shaders/planet.vert.glsl loaded
-file shaders/planet.geom.glsl loaded
-file shaders/planet.frag.glsl loaded
 16	0.730721
 24	0.692152
 32	0.688004
